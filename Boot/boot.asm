@@ -1,16 +1,13 @@
 
 ;*********************************************
 ;	boot.asm
-;		- A Simple Bootloader
+;		- Some Insignificant Tiny OS Bootloader
 ;
-;	Operating Systems Development Series
+;	By Christian Arnold
 ;*********************************************
 
 bits	16
-
 org	0						; we will set regisers later
-
-; %include "bpb.asm"		; Include only if writing to a non-1.44M floppy
 
 start:	jmp	main
 
@@ -21,9 +18,9 @@ start:	jmp	main
 bpb_oem_name				db "SITOS1.0"
 bpb_bytes_per_sector:  		DW 512
 bpb_sectors_per_cluster:	DB 1
-bpbReservedSectors: 	DW 1
-bpbNumberOfFATs: 	DB 2
-bpbRootEntries: 	DW 224
+bpb_reserved_sectors: 		DW 1
+bpb_FATs: 					DB 2
+bpb_root_entries:			DW 224
 bpbTotalSectors: 	DW 2880
 bpbMedia: 		DB 0xf8  ;; 0xF1
 bpbSectorsPerFAT: 	DW 9
