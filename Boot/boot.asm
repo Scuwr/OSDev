@@ -21,7 +21,7 @@ bpb_sectors_per_cluster:	DB 1
 bpb_reserved_sectors: 		DW 1
 bpb_FATs: 					DB 2
 bpb_root_entries:			DW 224
-bpbTotalSectors: 	DW 2880
+bpb_sectors: 				DW 2880
 bpbMedia: 		DB 0xf8  ;; 0xF1
 bpbSectorsPerFAT: 	DW 9
 bpbSectorsPerTrack: 	DW 18
