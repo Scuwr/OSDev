@@ -6,34 +6,36 @@
 ;	By Christian Arnold
 ;*********************************************
 
-bits	16
-org	0						; we will set regisers later
+bits    16
+org	    0                           ; we will set regisers later
 
-start:	jmp	main
+start:	jmp short	main    
+        nop                         ; offset bpb below by 3 bytes       
 
 ;*********************************************
 ;	BIOS Parameter Block
+;   http://www.cse.scu.edu/~tschwarz/coen252_04/Lectures/FAT.html
 ;*********************************************
 
-bpb_oem_name				db "SITOS1.0"
-bpb_bytes_per_sector:  		DW 512
-bpb_sectors_per_cluster:	DB 1
-bpb_reserved_sectors: 		DW 1
-bpb_FATs: 					DB 2
-bpb_root_entries:			DW 224
-bpb_sectors: 				DW 2880
-bpbMedia: 		DB 0xf8  ;; 0xF1
-bpbSectorsPerFAT: 	DW 9
-bpbSectorsPerTrack: 	DW 18
-bpbHeadsPerCylinder: 	DW 2
-bpbHiddenSectors: 	DD 0
-bpbTotalSectorsBig:     DD 0
-bsDriveNumber: 	        DB 0
-bsUnused: 		DB 0
-bsExtBootSignature: 	DB 0x29
-bsSerialNumber:	        DD 0xa0a1a2a3
-bsVolumeLabel: 	        DB "MOS FLOPPY "
-bsFileSystem: 	        DB "FAT12   "
+oem_name                db "SITOS1.0"
+bytes_per_sector:       dw 512
+sectors_per_cluster:    db 1
+reserved_sectors:       dw 1
+FATs:                   db 2
+root_entries:           dw 224
+total_sectors: 			dw 2880
+media_type:	            db 0xf0 ; f8 for fixed media
+secors_per_FAT:	        dw 9
+sectors_per_track: 	    dw 18
+heads_per_cylinder:     dw 2
+hidden_sectors:         dd 0
+total_sectors_bignum:   dd 0
+drive_number: 	        db 0
+current_head: 		    db 0 ; unused in FAT filesystem
+ext_boot_signature:     db 0x29
+volume_serial_number:	dd 0xa0a1a2a3
+volume_label: 	        db "TOS FLOPPY "
+file_system_id: 	    db "FAT12   "
 
 ;************************************************;
 ;	Prints a string
@@ -302,6 +304,8 @@ main:
           int     0x16                                ; await keypress
           int     0x19                                ; warm boot computer
      
+    boot_base:      dw 0x7c00
+
      absoluteSector db 0x00
      absoluteHead   db 0x00
      absoluteTrack  db 0x00
