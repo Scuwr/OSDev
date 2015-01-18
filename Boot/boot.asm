@@ -1,4 +1,3 @@
-
 ;*********************************************
 ;	boot.asm
 ;		- Some Insignificant Tiny OS Bootloader
@@ -7,35 +6,62 @@
 ;*********************************************
 
 bits    16
-org	    0                           ; we will set regisers later
+org	   0
 
-start:	jmp short	main    
-        nop                         ; offset bpb below by 3 bytes       
+start:    jmp  main    
+          ;nop                ; use only if prev instr is 
+                              ; jmp short main       
 
 ;*********************************************
 ;	BIOS Parameter Block
 ;   http://www.cse.scu.edu/~tschwarz/coen252_04/Lectures/FAT.html
 ;*********************************************
 
-oem_name                db "SITOS1.0"
-bytes_per_sector:       dw 512
-sectors_per_cluster:    db 1
-reserved_sectors:       dw 1
-FATs:                   db 2
-root_entries:           dw 224
-total_sectors: 			dw 2880
-media_type:	            db 0xf0 ; f8 for fixed media
-secors_per_FAT:	        dw 9
-sectors_per_track: 	    dw 18
-heads_per_cylinder:     dw 2
-hidden_sectors:         dd 0
-total_sectors_bignum:   dd 0
-drive_number: 	        db 0
-current_head: 		    db 0 ; unused in FAT filesystem
-ext_boot_signature:     db 0x29
+oem_name:                db "SITOS1.0"
+bytes_per_sector:        dw 512
+sectors_per_cluster:     db 1
+reserved_sectors:        dw 1
+number_of_FATs:          db 2
+root_entries:            dw 224
+total_sectors:           dw 2880
+media_type:	          db 0xf0 ; f8 for fixed media
+sectors_per_FAT:	     dw 9
+sectors_per_track: 	     dw 18
+heads_per_cylinder:      dw 2
+hidden_sectors:          dd 0
+total_sectors_bignum:    dd 0
+drive_number: 	          db 0
+current_head: 		     db 0 ; unused in FAT filesystem
+ext_boot_signature:      db 0x29
 volume_serial_number:	dd 0xa0a1a2a3
-volume_label: 	        db "TOS FLOPPY "
-file_system_id: 	    db "FAT12   "
+volume_label: 	          db "TOS FLOPPY "
+file_system_id: 	     db "FAT12   "
+
+;*********************************************
+;    Bootloader Entry Point
+;*********************************************
+
+;boot_main:
+
+     ;----------------------------------------------------
+     ; code located at 0000:7C00, adjust segment registers
+     ;----------------------------------------------------
+
+     ;     mov     ax, 0x07C0                 ; setup registers to point to our segment
+     ;     mov     ds, ax
+     ;     mov     es, ax
+
+     ;----------------------------------------------------
+     ; create stack
+     ;----------------------------------------------------
+     
+     ;     mov     ax, 0x0000                 ; set the stack
+     ;     mov     ss, ax
+     ;     mov     sp, 0xFFFF
+     ;     sti                           ; restore interrupts
+
+
+
 
 ;************************************************;
 ;	Prints a string
@@ -71,7 +97,7 @@ ReadSectors:
           mov     ch, BYTE [absoluteTrack]            ; track
           mov     cl, BYTE [absoluteSector]           ; sector
           mov     dh, BYTE [absoluteHead]             ; head
-          mov     dl, BYTE [bsDriveNumber]            ; drive
+          mov     dl, BYTE [drive_number]            ; drive
           int     0x13                                ; invoke BIOS
           jnc     .SUCCESS                            ; test for read error
           xor     ax, ax                              ; BIOS reset disk
@@ -88,7 +114,7 @@ ReadSectors:
           pop     cx
           pop     bx
           pop     ax
-          add     bx, WORD [bpbBytesPerSector]        ; queue next buffer
+          add     bx, WORD [bytes_per_sector]        ; queue next buffer
           inc     ax                                  ; queue next sector
           loop    .MAIN                               ; read next sector
           ret
@@ -101,7 +127,7 @@ ReadSectors:
 ClusterLBA:
           sub     ax, 0x0002                          ; zero base cluster number
           xor     cx, cx
-          mov     cl, BYTE [bpbSectorsPerCluster]     ; convert byte to word
+          mov     cl, BYTE [sectors_per_cluster]     ; convert byte to word
           mul     cx
           add     ax, WORD [datasector]               ; base data sector
           ret
@@ -118,11 +144,11 @@ ClusterLBA:
 
 LBACHS:
           xor     dx, dx                              ; prepare dx:ax for operation
-          div     WORD [bpbSectorsPerTrack]           ; calculate
+          div     WORD [sectors_per_track]           ; calculate
           inc     dl                                  ; adjust for sector 0
           mov     BYTE [absoluteSector], dl
           xor     dx, dx                              ; prepare dx:ax for operation
-          div     WORD [bpbHeadsPerCylinder]          ; calculate
+          div     WORD [heads_per_cylinder]          ; calculate
           mov     BYTE [absoluteHead], dl
           mov     BYTE [absoluteTrack], al
           ret
@@ -134,30 +160,24 @@ LBACHS:
 main:
 
      ;----------------------------------------------------
-     ; code located at 0000:7C00, adjust segment registers
+     ; Set segment registers and stack
      ;----------------------------------------------------
-     
-          cli						; disable interrupts
-          mov     ax, 0x07C0				; setup registers to point to our segment
+
+          mov     ax, 0x07c0
           mov     ds, ax
           mov     es, ax
-          mov     fs, ax
-          mov     gs, ax
 
-     ;----------------------------------------------------
-     ; create stack
-     ;----------------------------------------------------
-     
-          mov     ax, 0x0000				; set the stack
+          xor     ax, ax
           mov     ss, ax
-          mov     sp, 0xFFFF
-          sti						; restore interrupts
+          mov     sp, 0x7c00
 
      ;----------------------------------------------------
      ; Display loading message
      ;----------------------------------------------------
      
-          mov     si, msgLoading
+          mov     ax, 0x3          ; clear screen
+          int     0x10
+          mov     si, msg_loading
           call    Print
           
      ;----------------------------------------------------
@@ -171,15 +191,15 @@ main:
           xor     cx, cx
           xor     dx, dx
           mov     ax, 0x0020                           ; 32 byte directory entry
-          mul     WORD [bpbRootEntries]                ; total size of directory
-          div     WORD [bpbBytesPerSector]             ; sectors used by directory
+          mul     WORD [root_entries]                ; total size of directory
+          div     WORD [bytes_per_sector]             ; sectors used by directory
           xchg    ax, cx
           
      ; compute location of root directory and store in "ax"
      
-          mov     al, BYTE [bpbNumberOfFATs]            ; number of FATs
-          mul     WORD [bpbSectorsPerFAT]               ; sectors used by FATs
-          add     ax, WORD [bpbReservedSectors]         ; adjust for bootsector
+          mov     al, BYTE [number_of_FATs]            ; number of FATs
+          mul     WORD [sectors_per_FAT]               ; sectors used by FATs
+          add     ax, WORD [reserved_sectors]         ; adjust for bootsector
           mov     WORD [datasector], ax                 ; base of root directory
           add     WORD [datasector], cx
           
@@ -193,7 +213,7 @@ main:
      ;----------------------------------------------------
 
      ; browse root directory for binary image
-          mov     cx, WORD [bpbRootEntries]             ; load loop counter
+          mov     cx, WORD [root_entries]             ; load loop counter
           mov     di, 0x0200                            ; locate first root entry
      .LOOP:
           push    cx
@@ -224,13 +244,13 @@ main:
      ; compute size of FAT and store in "cx"
      
           xor     ax, ax
-          mov     al, BYTE [bpbNumberOfFATs]          ; number of FATs
-          mul     WORD [bpbSectorsPerFAT]             ; sectors used by FATs
+          mov     al, BYTE [number_of_FATs]          ; number of FATs
+          mul     WORD [sectors_per_FAT]             ; sectors used by FATs
           mov     cx, ax
 
      ; compute location of FAT and store in "ax"
 
-          mov     ax, WORD [bpbReservedSectors]       ; adjust for bootsector
+          mov     ax, WORD [reserved_sectors]       ; adjust for bootsector
           
      ; read FAT into memory (7C00:0200)
 
@@ -256,7 +276,7 @@ main:
           pop     bx                                  ; buffer to read into
           call    ClusterLBA                          ; convert cluster to LBA
           xor     cx, cx
-          mov     cl, BYTE [bpbSectorsPerCluster]     ; sectors to read
+          mov     cl, BYTE [sectors_per_cluster]     ; sectors to read
           call    ReadSectors
           push    bx
           
@@ -303,8 +323,6 @@ main:
           mov     ah, 0x00
           int     0x16                                ; await keypress
           int     0x19                                ; warm boot computer
-     
-    boot_base:      dw 0x7c00
 
      absoluteSector db 0x00
      absoluteHead   db 0x00
@@ -313,10 +331,10 @@ main:
      datasector  dw 0x0000
      cluster     dw 0x0000
      ImageName   db "KRNLDR  SYS"
-     msgLoading  db 0x0D, 0x0A, "Loading Boot Image ", 0x0D, 0x0A, 0x00
+     msg_loading db "Loading", 0x00
      msgCRLF     db 0x0D, 0x0A, 0x00
      msgProgress db ".", 0x00
-     msgFailure  db 0x0D, 0x0A, "ERROR : Press Any Key to Reboot", 0x0A, 0x00
+     msgFailure  db 0x0D, 0x0A, "Disk Error", 0x0D, 0x0A, 0x00
      
           TIMES 510-($-$$) DB 0
           DW 0xAA55
