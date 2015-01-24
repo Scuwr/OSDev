@@ -90,7 +90,6 @@ ReadSectors:
           mov     di, 0x0005                          ; five retries for error
      .SECTORLOOP:
           push    ax
-          ; push    bx
           push    cx
           call    lba_to_chs                          ; convert starting sector to CHS
           mov     ah, 0x02                            ; BIOS read sector
@@ -107,7 +106,6 @@ ReadSectors:
 
           dec     di                                  ; decrement error counter
           pop     cx
-          ; pop     bx
           pop     ax
           jnz     .SECTORLOOP                         ; attempt to read again
           
@@ -116,7 +114,6 @@ ReadSectors:
           mov     si, msgProgress
           call    Print
           pop     cx
-          ; pop     bx
           pop     ax
           add     bx, WORD [bytes_per_sector]        ; queue next buffer
           inc     ax                                  ; queue next sector
@@ -169,7 +166,7 @@ main:
 
           mov     ax, 0x07c0
           mov     ds, ax
-          mov     es, ax
+          ; mov     es, ax
 
           xor     ax, ax
           mov     ss, ax
