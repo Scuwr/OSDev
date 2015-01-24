@@ -1,7 +1,8 @@
 
-nasm -f bin Boot1.asm -o Boot1.bin
+nasm -f bin Boot\boot.asm -o Boot\boot.bin
 
-PARTCOPY Boot1.bin 0 3 -f0 0 
-PARTCOPY Boot1.bin 3E 1C2 -f0 3E 
+imdisk -a -f Boot\boot.bin -s 1440K -m A: -o fd,awe
+
+copy Kernel\KRNLDR.SYS A:\
 
 pause
