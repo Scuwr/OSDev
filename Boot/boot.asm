@@ -90,9 +90,9 @@ ReadSectors:
           mov     di, 0x0005                          ; five retries for error
      .SECTORLOOP:
           push    ax
-          push    bx
+          ; push    bx
           push    cx
-          call    LBACHS                              ; convert starting sector to CHS
+          call    lba_to_chs                          ; convert starting sector to CHS
           mov     ah, 0x02                            ; BIOS read sector
           mov     al, 0x01                            ; read one sector
           mov     ch, BYTE [absoluteTrack]            ; track
@@ -101,19 +101,22 @@ ReadSectors:
           mov     dl, BYTE [drive_number]             ; drive
           int     0x13                                ; invoke BIOS
           jnc     .SUCCESS                            ; test for read error
-          xor     ax, ax                              ; BIOS reset disk
-          int     0x13                                ; invoke BIOS
+
+          xor     ax, ax                              ; if failure, reset BIOS disk
+          int     0x13
+
           dec     di                                  ; decrement error counter
           pop     cx
-          pop     bx
+          ; pop     bx
           pop     ax
           jnz     .SECTORLOOP                         ; attempt to read again
-          int     0x18
+          
+          int     0x18                                ; interrupt: failure to boot
      .SUCCESS:
           mov     si, msgProgress
           call    Print
           pop     cx
-          pop     bx
+          ; pop     bx
           pop     ax
           add     bx, WORD [bytes_per_sector]        ; queue next buffer
           inc     ax                                  ; queue next sector
@@ -125,7 +128,7 @@ ReadSectors:
 ; LBA = (cluster - 2) * sectors per cluster
 ;************************************************;
 
-ClusterLBA:
+chs_to_lba:
           sub     ax, 0x0002                          ; zero base cluster number
           xor     cx, cx
           mov     cl, BYTE [sectors_per_cluster]     ; convert byte to word
@@ -143,7 +146,7 @@ ClusterLBA:
 ;
 ;************************************************;
 
-LBACHS:
+lba_to_chs:
           xor     dx, dx                              ; prepare dx:ax for operation
           div     WORD [sectors_per_track]           ; calculate
           inc     dl                                  ; adjust for sector 0
@@ -275,7 +278,7 @@ main:
      
           mov     ax, WORD [cluster]                  ; cluster to read
           pop     bx                                  ; buffer to read into
-          call    ClusterLBA                          ; convert cluster to LBA
+          call    chs_to_lba                          ; convert cluster to LBA
           xor     cx, cx
           mov     cl, BYTE [sectors_per_cluster]     ; sectors to read
           call    ReadSectors
