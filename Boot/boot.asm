@@ -3,6 +3,7 @@
 ;		- Some Insignificant Tiny OS Bootloader
 ;
 ;	By Christian Arnold
+;    Code addapted from http://www.brokenthorn.com/
 ;*********************************************
 
 bits    16
@@ -14,7 +15,7 @@ start:    jmp  main
 
 ;*********************************************
 ;	BIOS Parameter Block
-;   http://www.cse.scu.edu/~tschwarz/coen252_04/Lectures/FAT.html
+;    http://www.cse.scu.edu/~tschwarz/coen252_04/Lectures/FAT.html
 ;*********************************************
 
 oem_name:                db "SITOS1.0"
@@ -97,7 +98,7 @@ ReadSectors:
           mov     ch, BYTE [absoluteTrack]            ; track
           mov     cl, BYTE [absoluteSector]           ; sector
           mov     dh, BYTE [absoluteHead]             ; head
-          mov     dl, BYTE [drive_number]            ; drive
+          mov     dl, BYTE [drive_number]             ; drive
           int     0x13                                ; invoke BIOS
           jnc     .SUCCESS                            ; test for read error
           xor     ax, ax                              ; BIOS reset disk
@@ -186,26 +187,26 @@ main:
 
      LOAD_ROOT:
      
-     ; compute size of root directory and store in "cx"
+     ; get root directory size and store in "cx"
      
           xor     cx, cx
           xor     dx, dx
-          mov     ax, 0x0020                           ; 32 byte directory entry
-          mul     WORD [root_entries]                ; total size of directory
-          div     WORD [bytes_per_sector]             ; sectors used by directory
+          mov     ax, 0x0020                ; 32 bytes per FAT entry
+          mul     WORD [root_entries]
+          div     WORD [bytes_per_sector]
           xchg    ax, cx
           
      ; compute location of root directory and store in "ax"
      
-          mov     al, BYTE [number_of_FATs]            ; number of FATs
-          mul     WORD [sectors_per_FAT]               ; sectors used by FATs
-          add     ax, WORD [reserved_sectors]         ; adjust for bootsector
-          mov     WORD [datasector], ax                 ; base of root directory
+          mov     al, BYTE [number_of_FATs]
+          mul     WORD [sectors_per_FAT]
+          add     ax, WORD [reserved_sectors]
+          mov     WORD [datasector], ax
           add     WORD [datasector], cx
           
      ; read root directory into memory (7C00:0200)
      
-          mov     bx, 0x0200                            ; copy root dir above bootcode
+          mov     bx, 0x0200     ; copy root dir above bootcode
           call    ReadSectors
 
      ;----------------------------------------------------
