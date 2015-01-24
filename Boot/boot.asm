@@ -9,8 +9,8 @@
 bits    16
 org	   0
 
-start:    jmp  main    
-          ;nop                ; use only if prev instr is 
+start:    jmp short main    
+          nop                 ; use only if prev instr is 
                               ; jmp short main       
 
 ;*********************************************
@@ -42,27 +42,76 @@ file_system_id: 	     db "FAT12   "
 ;    Bootloader Entry Point
 ;*********************************************
 
-;boot_main:
+main:
 
      ;----------------------------------------------------
-     ; code located at 0000:7C00, adjust segment registers
+     ; Set segment registers and stack
      ;----------------------------------------------------
 
-     ;     mov     ax, 0x07C0                 ; setup registers to point to our segment
-     ;     mov     ds, ax
-     ;     mov     es, ax
+          mov     ax, 0x07c0
+          mov     ds, ax
+          mov     es, ax
+
+          xor     ax, ax
+          mov     ss, ax
+          mov     sp, 0x7c00
 
      ;----------------------------------------------------
-     ; create stack
+     ; Display loading message
      ;----------------------------------------------------
      
-     ;     mov     ax, 0x0000                 ; set the stack
-     ;     mov     ss, ax
-     ;     mov     sp, 0xFFFF
-     ;     sti                           ; restore interrupts
+          mov     ax, 0x3          ; clear screen
+          int     0x10
+          mov     si, msg_loading
+          call    Print
+          
+     ;----------------------------------------------------
+     ; Load root directory table
+     ;----------------------------------------------------
 
+     load_root:
+     
+     ; get root directory size and store in "cx"
+     
+          xor     cx, cx
+          xor     dx, dx
+          mov     ax, 0x0020                ; 32 bytes per FAT entry
+          mul     WORD [root_entries]
+          div     WORD [bytes_per_sector]
+          xchg    ax, cx
+          
+     ; compute location of root directory and store in "ax"
+     
+          mov     al, BYTE [number_of_FATs]
+          mul     WORD [sectors_per_FAT]
+          add     ax, WORD [reserved_sectors]
+          mov     WORD [datasector], ax
+          add     WORD [datasector], cx
+          
+     ; read root directory into memory (7C00:0200)
+     
+          mov     bx, 0x0200     ; copy root dir above bootcode
+          call    read_sectors
 
+     ;----------------------------------------------------
+     ; Find stage 2
+     ;----------------------------------------------------
 
+     ; browse root directory for binary image
+          mov     cx, WORD [root_entries]             ; load loop counter
+          mov     di, 0x0200                            ; locate first root entry
+     .LOOP:
+          push    cx
+          mov     cx, 0x000B                            ; eleven character name
+          mov     si, ImageName                         ; image name to find
+          push    di
+     rep  cmpsb                                         ; test for entry match
+          pop     di
+          je      LOAD_FAT
+          pop     cx
+          add     di, 0x0020                            ; queue next directory entry
+          loop    .LOOP
+          jmp     FAILURE
 
 ;************************************************;
 ;	Prints a string
@@ -85,7 +134,7 @@ Print:
 ; ES:BX=>Buffer to read to
 ;************************************************;
 
-ReadSectors:
+read_sectors:
      .MAIN:
           mov     di, 0x0005                          ; five retries for error
      .SECTORLOOP:
@@ -111,13 +160,14 @@ ReadSectors:
           
           int     0x18                                ; interrupt: failure to boot
      .SUCCESS:
-          mov     si, msgProgress
-          call    Print
           pop     cx
           pop     ax
           add     bx, WORD [bytes_per_sector]        ; queue next buffer
           inc     ax                                  ; queue next sector
           loop    .MAIN                               ; read next sector
+
+          mov     si, msgProgress
+          call    Print
           ret
 
 ;************************************************;
@@ -154,91 +204,13 @@ lba_to_chs:
           mov     BYTE [absoluteTrack], al
           ret
 
-;*********************************************
-;	Bootloader Entry Point
-;*********************************************
+;----------------------------------------------------
+; Load FAT
+;----------------------------------------------------
 
-main:
-
-     ;----------------------------------------------------
-     ; Set segment registers and stack
-     ;----------------------------------------------------
-
-          mov     ax, 0x07c0
-          mov     ds, ax
-          ; mov     es, ax
-
-          xor     ax, ax
-          mov     ss, ax
-          mov     sp, 0x7c00
-
-     ;----------------------------------------------------
-     ; Display loading message
-     ;----------------------------------------------------
-     
-          mov     ax, 0x3          ; clear screen
-          int     0x10
-          mov     si, msg_loading
-          call    Print
-          
-     ;----------------------------------------------------
-     ; Load root directory table
-     ;----------------------------------------------------
-
-     LOAD_ROOT:
-     
-     ; get root directory size and store in "cx"
-     
-          xor     cx, cx
-          xor     dx, dx
-          mov     ax, 0x0020                ; 32 bytes per FAT entry
-          mul     WORD [root_entries]
-          div     WORD [bytes_per_sector]
-          xchg    ax, cx
-          
-     ; compute location of root directory and store in "ax"
-     
-          mov     al, BYTE [number_of_FATs]
-          mul     WORD [sectors_per_FAT]
-          add     ax, WORD [reserved_sectors]
-          mov     WORD [datasector], ax
-          add     WORD [datasector], cx
-          
-     ; read root directory into memory (7C00:0200)
-     
-          mov     bx, 0x0200     ; copy root dir above bootcode
-          call    ReadSectors
-
-     ;----------------------------------------------------
-     ; Find stage 2
-     ;----------------------------------------------------
-
-     ; browse root directory for binary image
-          mov     cx, WORD [root_entries]             ; load loop counter
-          mov     di, 0x0200                            ; locate first root entry
-     .LOOP:
-          push    cx
-          mov     cx, 0x000B                            ; eleven character name
-          mov     si, ImageName                         ; image name to find
-          push    di
-     rep  cmpsb                                         ; test for entry match
-          pop     di
-          je      LOAD_FAT
-          pop     cx
-          add     di, 0x0020                            ; queue next directory entry
-          loop    .LOOP
-          jmp     FAILURE
-
-     ;----------------------------------------------------
-     ; Load FAT
-     ;----------------------------------------------------
-
-     LOAD_FAT:
+LOAD_FAT:
      
      ; save starting cluster of boot image
-     
-          mov     si, msgCRLF
-          call    Print
           mov     dx, WORD [di + 0x001A]
           mov     WORD [cluster], dx                  ; file's first cluster
           
@@ -256,12 +228,9 @@ main:
      ; read FAT into memory (7C00:0200)
 
           mov     bx, 0x0200                          ; copy FAT above bootcode
-          call    ReadSectors
+          call    read_sectors
 
      ; read image file into memory (0050:0000)
-     
-          mov     si, msgCRLF
-          call    Print
           mov     ax, 0x0050
           mov     es, ax                              ; destination for image
           mov     bx, 0x0000                          ; destination for image
@@ -271,14 +240,14 @@ main:
      ; Load Stage 2
      ;----------------------------------------------------
 
-     LOAD_IMAGE:
+LOAD_IMAGE:
      
           mov     ax, WORD [cluster]                  ; cluster to read
           pop     bx                                  ; buffer to read into
           call    chs_to_lba                          ; convert cluster to LBA
           xor     cx, cx
           mov     cl, BYTE [sectors_per_cluster]     ; sectors to read
-          call    ReadSectors
+          call    read_sectors
           push    bx
           
      ; compute next cluster
@@ -297,7 +266,7 @@ main:
      .EVEN_CLUSTER:
      
           and     dx, 0000111111111111b               ; take low twelve bits
-         jmp     .DONE
+          jmp     .DONE
          
      .ODD_CLUSTER:
      
