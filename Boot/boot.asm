@@ -2,7 +2,7 @@
 ;	boot.asm
 ;		- Some Insignificant Tiny OS Bootloader
 ;
-;	By Christian Arnold
+;	By Scuwr
 ;    Code addapted from http://www.brokenthorn.com/
 ;*********************************************
 
